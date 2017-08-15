@@ -1,7 +1,7 @@
 from __future__ import unicode_literals
 
 import django
-from django.contrib import admin
+from django.contrib import admin, messages
 from django.contrib.contenttypes.models import ContentType
 from django.core import urlresolvers
 from django.forms.models import ModelForm
@@ -85,36 +85,30 @@ class ModerationAdmin(admin.ModelAdmin):
             obj = self.model.unmoderated_objects.get(pk=object_id)
             moderated_obj = ModeratedObject.objects.get_for_instance(obj)
             moderator = moderated_obj.moderator
-            msg = self.get_moderation_message(moderated_obj.status,
+            self.get_moderation_message(request, moderated_obj.status,
                                               moderated_obj.reason,
                                               moderator.visible_until_rejected)
         except ModeratedObject.DoesNotExist:
-            msg = self.get_moderation_message()
-
-        self.message_user(request, msg)
+            self.get_moderation_message(request)
 
     def save_model(self, request, obj, form, change):
         obj.save()
         automoderate(obj, request.user)
 
-    def get_moderation_message(self, status=None, reason=None,
+    def get_moderation_message(self, request, status=None, reason=None,
                                visible_until_rejected=False):
         if status == MODERATION_STATUS_PENDING:
             if visible_until_rejected:
-                return _("Object is viewable on site, "
-                         "it will be removed if moderator rejects it")
+                messages.info(request, _("Make changes below and press 'Save' to submit for review."))
             else:
-                return _("Object is not viewable on site, "
-                         "it will be visible if moderator accepts it")
+                messages.info(request, _("Awaiting review."))
         elif status == MODERATION_STATUS_REJECTED:
-            return _("Object has been rejected by moderator, "
-                     "reason: %s" % reason)
+            messages.error(request, _("The changes have been rejected by a reviewer, "
+                     "reason: %s" % reason))
         elif status == MODERATION_STATUS_APPROVED:
-            return _("Object has been approved by moderator "
-                     "and is visible on site")
+            messages.success(request, return _("The changes have been approved by a reviewer!"))
         elif status is None:
-            return _("This object is not registered with "
-                     "the moderation system.")
+            messages.info(request, _("Make changes below and Save to submit for review."))
 
     def get_moderated_object_form(self, model_class):
 
